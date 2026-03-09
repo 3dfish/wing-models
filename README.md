@@ -13,6 +13,13 @@
 - CLI: 通过命令行脚本调用
 - VS Code Chat: 通过技能工作流交互
 
+## 双通道消息规则
+
+- 在任意时刻，用户消息中 `==...==` 内的内容会被视为第三方模型输入。
+- `==...==` 外侧内容只给当前 agent，本地处理，不会转发到 OpenRouter。
+- 没有完整 `==...==` 成对标记时，不调用 OpenRouter。
+- 多个 `==...==` 片段会按出现顺序合并后一次发送给 OpenRouter。
+
 ## 仓库结构
 
 ```text
@@ -96,16 +103,27 @@ node ./scripts/openrouter_capture.mjs --list-aliases
 - `--default-alias <alias>`: 指定默认别名（配合 `--save-env` 持久化）
 - `--agent <profile>`: 输出 profile（`github-copilot/claude-code/cursor/codex-cli/generic`）
 - `--list-aliases`: 列出当前 profile 别名与绑定模型
+- `--check-agent-consistency`: 校验各 agent profile 是否保持统一交互契约（`inlineTextPreview=true`、`emitRouteMarker=true`）
 - `--save-env`: 将当前 profile 集、默认别名、agent 配置写入 `openrouter/.env`
 - `--help`: 查看帮助
+
+一致性校验示例：
+
+```bash
+node ./scripts/openrouter_capture.mjs --check-agent-consistency
+```
 
 ## 凭据存储格式
 
 脚本把 profile 集合写入 `openrouter/.env`：
 
-- `OPENROUTER_PROFILE_SET='[{"alias":"default","apiKey":"***","modelId":"openrouter/auto","note":""}]'`
+- `OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"***","modelId":"openrouter/auto","note":""}]`
 - `OPENROUTER_DEFAULT_ALIAS="alias1"`
 - `OPENCLAW_AGENT_PROFILE="github-copilot"`
+
+说明：
+
+- `OPENROUTER_PROFILE_SET` 按原始 JSON 保存（不额外包裹 JSON 字符串转义层），避免在不同 agent/runtime 间反复读写时出现逐层反斜杠转义累积。
 
 注意：
 
@@ -161,5 +179,5 @@ node ./scripts/openrouter_capture.mjs --list-aliases
 
 - 技能定义：`SKILL.md`
 - Agent 兼容：`references/agent-compatibility.md`
-- Relay 协议：`references/protocol.md`
+- 双通道协议：`references/protocol.md`
 - 回归清单：`references/regression-checklist.md`

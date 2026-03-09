@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "check:agent-compat": "node ./openrouter_capture.mjs --check-agent-consistency"
+  },
   "dependencies": {
-    "@openrouter/sdk": "^0.9.11"
+    "@openrouter/sdk": "^0.9.11",
+    "dotenv": "^17.3.1"
   }
 }

@@ -1,42 +1,29 @@
 ---
 name: openrouter-wingmen
-description: "Use this skill whenever the user wants to talk to OpenRouter models through you, either as a relay (you pass messages back and forth) or as a wingman tool model (you ask OpenRouter first, then ask user consent before deeper internal use). Trigger on requests like '和 openrouter 聊聊', '帮我问问 openrouter', '你当传话员', '外援模型', '代问模型', and similar wording."
-argument-hint: "Mode A or B, first message, alias/model profile"
+description: "Use this skill whenever the user wants to route part of a message to an OpenRouter model while keeping the rest as local agent instructions. Trigger on requests like '和 openrouter 聊聊', '帮我问问 openrouter', '代问模型', or when the user writes content wrapped with ==...==."
+argument-hint: "user message, alias/model profile"
 ---
 
 # OpenRouter Wingmen
 
-This skill packages a repeatable OpenRouter conversation workflow with two modes.
+This skill packages a repeatable OpenRouter conversation workflow with a unified dual-channel syntax.
 
-## Modes
+## Unified Channel Protocol
 
-### Mode A: Wingman Tool Model
+At any turn, parse user text by the `==...==` rule:
 
-Use this when the user wants outside model input and then asks you to continue working with it.
+- Content inside `==...==` is the third-party model segment and must be sent to OpenRouter.
+- Content outside `==...==` is assistant-local segment and must never be forwarded to OpenRouter.
+- If no complete `==...==` pair exists, treat the whole message as assistant-local only and do not call OpenRouter.
+- If at least one complete pair exists but the merged inside content is empty after trim, do not call OpenRouter.
 
-Flow:
+Execution flow:
 
-1. Ask/resolve alias for this call.
-2. Call OpenRouter with alias-bound API key and model id.
-3. Print OpenRouter reply immediately.
-4. Ask user authorization before feeding that reply into your own deeper reasoning.
-5. If user refuses, do not reuse that reply internally.
-
-### Mode B: Pure Relay
-
-Use this when the user wants you to be a messenger only.
-
-Flow:
-
-1. First turn chat initialization:
-   - Ask first relay message.
-   - Ask alias (optional; default alias can be used).
-2. Later turns:
-   - User message is relay content by default.
-   - If message contains `--`, split at first `--`:
-     - Left side: relay content (send if non-empty).
-     - Right side: assistant-only instructions (never forward to OpenRouter).
-   - If message starts with `--`, do not call OpenRouter for that turn.
+1. Resolve alias for this call (explicit alias first, otherwise default alias).
+2. Extract and merge all complete `==...==` segments as OpenRouter prompt body.
+3. Send only merged inside content to OpenRouter.
+4. Print OpenRouter reply immediately in chat.
+5. Handle outside content locally as assistant instructions.
 
 ## Alias Credential Set (Mandatory)
 
@@ -82,8 +69,9 @@ Before reading saved OpenRouter output files (`.md` or attachments):
 - Script: `./scripts/openrouter_capture.mjs`
 - Package: `./scripts/package.json`
 - Dependency: `@openrouter/sdk`
+- Dependency: `dotenv`
 - Agent profile config: `./scripts/agent-profiles.json`
-- Relay protocol spec: `./references/protocol.md`
+- Channel protocol spec: `./references/protocol.md`
 - Agent compatibility reference: `./references/agent-compatibility.md`
 - Regression checklist: `./references/regression-checklist.md`
 
@@ -132,8 +120,9 @@ node <skill-dir>/scripts/openrouter_capture.mjs \
 
 ## Completion Checks
 
-- Mode selected correctly (A or B).
+- `==...==` channel parsing is applied correctly.
 - Alias selected correctly (arg or default).
 - OpenRouter reply printed immediately.
 - No API key exposed in logs.
 - Large-file consent requested when needed.
+- Agent consistency check passes: `node ./scripts/openrouter_capture.mjs --check-agent-consistency`.

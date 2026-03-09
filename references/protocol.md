@@ -1,72 +1,66 @@
-# Relay Protocol (`--`) 
+# Channel Protocol (`==...==`)
 
-This file defines the authoritative parsing and execution protocol for Mode B.
+This file defines the authoritative parsing and execution protocol for all turns.
 
 ## Purpose
 
-- Keep relay behavior deterministic.
-- Separate user-to-OpenRouter content from user-to-assistant control content.
-- Avoid accidental forwarding of assistant-side instructions.
+- Keep cross-agent behavior deterministic.
+- Separate third-party model payload from assistant-local instructions.
+- Avoid accidental forwarding of local instructions.
 
 ## Delimiter Rule
 
-- Delimiter token: `--`
-- Split rule: split user message at the first `--` only.
-- Left segment: relay segment (eligible to send to OpenRouter).
-- Right segment: assistant segment (never sent to OpenRouter).
+- Delimiter tokens: `==` opening and `==` closing.
+- Each complete pair `==...==` marks one OpenRouter segment.
+- Text outside any complete pair is assistant-local segment.
 
 ## Parsing Algorithm
 
 1. Read raw user message as a string.
-2. If no `--` exists:
-   - Entire message is relay segment.
-   - Assistant segment is empty.
-3. If `--` exists:
-   - Relay segment = text before first `--`.
-   - Assistant segment = text after first `--`.
-4. Trim both segments.
+2. Scan left to right and extract all complete `==...==` pairs.
+3. Third-party segment:
+   - Concatenate all inside texts in encounter order.
+   - Join multiple segments with two newlines.
+   - Trim final result.
+4. Assistant-local segment:
+   - Remove all extracted `==...==` blocks from original text.
+   - Keep remaining text order.
+   - Trim final result.
+5. Unmatched `==` without a closing pair is treated as plain assistant-local text.
 
 ## Execution Rules
 
-1. If relay segment is non-empty:
-   - Send it to OpenRouter using current resolved model id.
-2. If relay segment is empty:
-   - Do not call OpenRouter for this turn.
-3. If assistant segment is non-empty:
+1. If third-party segment is non-empty:
+   - Send it to OpenRouter using resolved alias/model.
+2. If third-party segment is empty:
+   - Do not call OpenRouter for that turn.
+3. If assistant-local segment is non-empty:
    - Treat it as instructions for the assistant only.
    - Never include it in OpenRouter prompt.
 
-## State Updates
-
-- Keep `last_model_id` in session state.
-- Model resolution order:
-  - explicit model request from assistant segment
-  - existing `last_model_id`
-  - `openrouter/auto`
-
 ## Examples
 
-- Input: `今天北京天气怎么样`
-  - Relay: `今天北京天气怎么样`
-  - Assistant: empty
+- Input: `请你总结一下这份规范`
+  - Third-party: empty
+  - Assistant-local: `请你总结一下这份规范`
+  - Action: no OpenRouter call
+
+- Input: `==请用三点总结这份规范==`
+  - Third-party: `请用三点总结这份规范`
+  - Assistant-local: empty
   - Action: call OpenRouter
 
-- Input: `今天北京天气怎么样 -- 原样转述`
-  - Relay: `今天北京天气怎么样`
-  - Assistant: `原样转述`
-  - Action: call OpenRouter with relay segment only
+- Input: `先别解释太多，==比较 gpt 和 claude 的风格==然后给我一个结论`
+  - Third-party: `比较 gpt 和 claude 的风格`
+  - Assistant-local: `先别解释太多，然后给我一个结论`
+  - Action: call OpenRouter with inside text only
 
-- Input: `-- 切换模型到 openrouter/auto`
-  - Relay: empty
-  - Assistant: `切换模型到 openrouter/auto`
-  - Action: update state only, no OpenRouter call
+- Input: `A==Q1==B==Q2==C`
+  - Third-party: `Q1\n\nQ2`
+  - Assistant-local: `ABC`
+  - Action: call OpenRouter once with merged third-party content
 
-- Input: `你好 -- 切到模型 a/b -- 其他备注`
-  - Relay: `你好`
-  - Assistant: `切到模型 a/b -- 其他备注`
-  - Action: split at first delimiter only
-
-## Non-Goals
-
-- No escaping mechanism for delimiter inside plain relay text.
-- If user needs literal `--` in relay content, they should avoid delimiter syntax for that turn.
+- Input: `这是未闭合 == 内容`
+  - Third-party: empty
+  - Assistant-local: `这是未闭合 == 内容`
+  - Action: no OpenRouter call

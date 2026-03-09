@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
+import { parse as parseDotEnv } from "dotenv";
 
 const DEFAULT_PROVIDER = "openrouter";
 const DEFAULT_MODEL = "openrouter/auto";
@@ -12,6 +13,7 @@ const DEFAULT_AGENT_PROFILE = "github-copilot";
 const PROFILE_SET_ENV_KEY = "OPENROUTER_PROFILE_SET";
 const DEFAULT_ALIAS_ENV_KEY = "OPENROUTER_DEFAULT_ALIAS";
 const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
+const SUPPORTED_AGENT_KEYS = ["github-copilot", "claude-code", "cursor", "codex-cli", "generic"];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = path.join(process.cwd(), "openrouter");
@@ -44,6 +46,7 @@ function parseArgs(argv) {
     defaultAlias: "",
     agentProfile: "",
     listAliases: false,
+    checkAgentConsistency: false,
     saveEnv: false,
     help: false,
   };
@@ -89,6 +92,10 @@ function parseArgs(argv) {
       parsed.listAliases = true;
       continue;
     }
+    if (token === "--check-agent-consistency") {
+      parsed.checkAgentConsistency = true;
+      continue;
+    }
     if (token === "--save-env") {
       parsed.saveEnv = true;
       continue;
@@ -106,11 +113,64 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(
-    "Usage: node openrouter_capture.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--agent <profile>] [--list-aliases] [--save-env]"
+    "Usage: node openrouter_capture.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--agent <profile>] [--list-aliases] [--check-agent-consistency] [--save-env]"
   );
   console.log("Repeat --attachment to attach multiple files. If prompt is omitted and attachments are provided, attachment-only input is sent.");
   console.log("`--image` remains available as a deprecated alias of `--attachment`.");
   console.log("Credential setup uses 4-step interaction per entry: apikey -> modelid -> alias -> note(optional).");
+}
+
+function normalizeAgentConfig(rawConfig) {
+  const sourceProfiles = rawConfig?.profiles && typeof rawConfig.profiles === "object" ? rawConfig.profiles : {};
+  const normalizedProfiles = {};
+
+  for (const key of SUPPORTED_AGENT_KEYS) {
+    const source = sourceProfiles[key] || {};
+    normalizedProfiles[key] = {
+      inlineTextPreview: true,
+      emitRouteMarker: true,
+      description: String(source.description || "Unified chat-input interaction profile."),
+    };
+  }
+
+  const rawDefault = String(rawConfig?.default || "").trim();
+  const defaultKey = SUPPORTED_AGENT_KEYS.includes(rawDefault) ? rawDefault : DEFAULT_AGENT_PROFILE;
+
+  return {
+    default: defaultKey,
+    profiles: normalizedProfiles,
+  };
+}
+
+function checkAgentConsistency(rawConfig) {
+  const sourceProfiles = rawConfig?.profiles && typeof rawConfig.profiles === "object" ? rawConfig.profiles : {};
+  const issues = [];
+
+  for (const key of SUPPORTED_AGENT_KEYS) {
+    const profile = sourceProfiles[key];
+    if (!profile || typeof profile !== "object") {
+      issues.push(`Missing profile: ${key}`);
+      continue;
+    }
+
+    if (profile.inlineTextPreview !== true) {
+      issues.push(`Profile ${key} has inlineTextPreview=${String(profile.inlineTextPreview)} (expected true)`);
+    }
+    if (profile.emitRouteMarker !== true) {
+      issues.push(`Profile ${key} has emitRouteMarker=${String(profile.emitRouteMarker)} (expected true)`);
+    }
+  }
+
+  const rawDefault = String(rawConfig?.default || "").trim();
+  if (!SUPPORTED_AGENT_KEYS.includes(rawDefault)) {
+    issues.push(`Default profile is invalid: ${rawDefault || "(empty)"}`);
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+    supportedProfiles: SUPPORTED_AGENT_KEYS,
+  };
 }
 
 async function loadJsonConfig(filePath, fallbackValue) {
@@ -156,7 +216,7 @@ function parseProfileObject(rawObject, indexHint = "?") {
 }
 
 function parseProfileSet(rawProfileSet) {
-  const source = String(rawProfileSet || "").trim();
+  const source = normalizeProfileSetSource(rawProfileSet);
   const profileMap = new Map();
 
   if (!source) {
@@ -176,6 +236,59 @@ function parseProfileSet(rawProfileSet) {
     profileMap.set(profile.alias, profile);
   });
   return profileMap;
+}
+
+function stripOuterQuotes(value) {
+  const source = String(value || "").trim();
+  if (!source) {
+    return source;
+  }
+
+  const hasDoubleQuotes = source.startsWith('"') && source.endsWith('"');
+  const hasSingleQuotes = source.startsWith("'") && source.endsWith("'");
+  if (hasDoubleQuotes || hasSingleQuotes) {
+    return source.slice(1, -1).trim();
+  }
+  return source;
+}
+
+function normalizeProfileSetSource(rawProfileSet) {
+  let source = String(rawProfileSet || "").trim();
+
+  if (!source) {
+    return source;
+  }
+
+  for (let i = 0; i < 4; i += 1) {
+    const unquoted = stripOuterQuotes(source);
+    if (unquoted !== source) {
+      source = unquoted;
+      continue;
+    }
+
+    if (!source.startsWith("[") && !source.startsWith("{")) {
+      return source;
+    }
+
+    try {
+      JSON.parse(source);
+      return source;
+    } catch {
+      const decoded = source
+        .replace(/\\n/g, "\n")
+        .replace(/\\r/g, "\r")
+        .replace(/\\t/g, "\t")
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, "\\");
+
+      if (decoded === source) {
+        break;
+      }
+      source = decoded.trim();
+    }
+  }
+
+  return source;
 }
 
 function serializeProfileSet(profileMap) {
@@ -504,37 +617,11 @@ function buildUserMessageContent(prompt, attachmentParts) {
   return content;
 }
 
-function parseEnvLine(line) {
-  const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-  if (!match) {
-    return null;
-  }
-
-  const key = match[1];
-  let value = match[2] ?? "";
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    value = value.slice(1, -1);
-  }
-
-  return [key, value];
-}
-
 async function loadWorkspaceEnvFile() {
   try {
     const raw = await readFile(ENV_FILE, "utf8");
-    for (const line of raw.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
-      const pair = parseEnvLine(trimmed);
-      if (!pair) {
-        continue;
-      }
-      const [key, value] = pair;
+    const parsedEnv = parseDotEnv(raw);
+    for (const [key, value] of Object.entries(parsedEnv)) {
       if (!process.env[key]) {
         process.env[key] = value;
       }
@@ -544,19 +631,12 @@ async function loadWorkspaceEnvFile() {
   }
 }
 
-function envQuote(value) {
-  return `"${value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")}"`;
-}
-
 async function saveWorkspaceEnvFile(runtimeEnv) {
   const content = [
     "# OpenRouter/OpenClaw runtime variables for this workspace",
-    `${PROFILE_SET_ENV_KEY}=${envQuote(runtimeEnv.profileSetRaw)}`,
-    `${DEFAULT_ALIAS_ENV_KEY}=${envQuote(runtimeEnv.defaultAlias)}`,
-    `${AGENT_PROFILE_ENV_KEY}=${envQuote(runtimeEnv.agentProfile)}`,
+    `${PROFILE_SET_ENV_KEY}=${runtimeEnv.profileSetRaw}`,
+    `${DEFAULT_ALIAS_ENV_KEY}=${runtimeEnv.defaultAlias}`,
+    `${AGENT_PROFILE_ENV_KEY}=${runtimeEnv.agentProfile}`,
     "",
   ].join("\n");
 
@@ -962,7 +1042,18 @@ async function main() {
     return;
   }
 
-  const agentConfig = await loadJsonConfig(AGENT_PROFILES_FILE, FALLBACK_AGENT_CONFIG);
+  const rawAgentConfig = await loadJsonConfig(AGENT_PROFILES_FILE, FALLBACK_AGENT_CONFIG);
+  const agentConfig = normalizeAgentConfig(rawAgentConfig);
+
+  if (args.checkAgentConsistency) {
+    const report = checkAgentConsistency(rawAgentConfig);
+    console.log(`[AGENT_COMPAT] ${JSON.stringify(report)}`);
+    if (!report.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   const runtime = await loadRuntimeState();
 
   if (args.defaultAlias && !runtime.profileMap.has(args.defaultAlias)) {
