@@ -13,10 +13,9 @@ const PROFILE_SET_ENV_KEY = "OPENROUTER_PROFILE_SET";
 const DEFAULT_ALIAS_ENV_KEY = "OPENROUTER_DEFAULT_ALIAS";
 const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = path.join(process.cwd(), "openrouter");
 const ENV_FILE = path.join(OUTPUT_DIR, ".env");
-
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const AGENT_PROFILES_FILE = path.join(SCRIPT_DIR, "agent-profiles.json");
 
 const FALLBACK_AGENT_CONFIG = {

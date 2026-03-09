@@ -58,7 +58,7 @@ If no profile set exists and the script is interactive, prompt user to enter pro
 
 ## Output Contract
 
-- Save outputs under `<workspace>/openrouter/`.
+- Save outputs under `<cwd>/openrouter/`.
 - Dialogue outputs: `*-dialogue.md` (question + answer; attachment sections record paths only)
 - Attachment outputs: `*-attachment-<n>.<ext>` files
 - Credentials file: `openrouter/.env`

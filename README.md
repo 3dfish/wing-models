@@ -114,7 +114,7 @@ node ./scripts/openrouter_capture.mjs --list-aliases
 
 ## 输出约定
 
-脚本会在仓库根目录创建 `openrouter/` 并输出：
+脚本会在当前工作目录（`cwd`）下创建 `openrouter/` 并输出：
 
 - 对话记录：`*-dialogue.md`（记录每次提问与回答）
 - 输入附件：`*-input-attachment-<n>.<ext>`
