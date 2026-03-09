@@ -57,7 +57,7 @@ npm install --prefix ./scripts
 - API key（必填）
 - Model id（必填）
 - 别名 alias（必填）
-- 备注 note（可选）
+- 备注 note（可选，若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
 - 是否继续新增下一条
 - 默认别名（default alias）
 
@@ -107,6 +107,11 @@ node ./scripts/openrouter_capture.mjs --list-aliases
 - `--check-agent-consistency`: 校验各 agent profile 是否保持统一交互契约（`inlineTextPreview=true`、`emitRouteMarker=true`）
 - `--save-env`: 将当前 profile 集、默认别名、agent 配置写入 `.env`
 - `--help`: 查看帮助
+
+首次非交互运行注意：
+
+- 如果技能根目录 `.env` 尚不存在，且在非交互环境中执行，必须显式传入 `--alias`，否则脚本会报错。
+- 这样可以避免首次执行被静默回退为 `default`。
 
 一致性校验示例：
 

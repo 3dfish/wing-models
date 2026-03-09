@@ -316,6 +316,20 @@ async function askRequiredInput(rl, question, validateFn) {
   }
 }
 
+function normalizeOptionalNoteInput(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const lowered = value.toLowerCase();
+  if (lowered === "skip" || lowered === "none" || lowered === "n/a" || value === "-" || value === "跳过" || value === "无") {
+    return "";
+  }
+
+  return value;
+}
+
 async function promptProfileSetFromUser() {
   if (!process.stdin.isTTY) {
     throw new Error(
@@ -335,7 +349,8 @@ async function promptProfileSetFromUser() {
           throw new Error("Alias can only contain letters, numbers, dot, underscore, hyphen.");
         }
       });
-      const note = (await rl.question("Note (optional): ")).trim();
+      const noteRaw = await rl.question("Note (optional, enter skip/跳过/- to leave empty): ");
+      const note = normalizeOptionalNoteInput(noteRaw);
 
       const parsed = parseProfileObject({ alias, apiKey, modelId, note }, profileMap.size + 1);
       profileMap.set(parsed.alias, parsed);
@@ -628,8 +643,10 @@ async function loadWorkspaceEnvFile() {
         process.env[key] = value;
       }
     }
+    return true;
   } catch {
     // .env does not exist yet.
+    return false;
   }
 }
 
@@ -1008,7 +1025,7 @@ async function getPrompt(parsedArgs) {
 
 async function loadRuntimeState() {
   await mkdir(OUTPUT_DIR, { recursive: true });
-  await loadWorkspaceEnvFile();
+  const envFileExists = await loadWorkspaceEnvFile();
 
   const envProfileSetRaw = String(process.env[PROFILE_SET_ENV_KEY] || "").trim();
   const envDefaultAlias = String(process.env[DEFAULT_ALIAS_ENV_KEY] || "").trim();
@@ -1022,6 +1039,7 @@ async function loadRuntimeState() {
       profileMap: seeded.profileMap,
       defaultAlias: seeded.defaultAlias,
       envAgentProfile,
+      envFileExists,
       profileSeededInteractively: true,
     };
   }
@@ -1033,6 +1051,7 @@ async function loadRuntimeState() {
     profileMap,
     defaultAlias,
     envAgentProfile,
+    envFileExists,
     profileSeededInteractively: false,
   };
 }
@@ -1057,6 +1076,13 @@ async function main() {
   }
 
   const runtime = await loadRuntimeState();
+
+  // In non-interactive first-time runs, force explicit alias to avoid silently falling back to "default".
+  if (!runtime.envFileExists && !process.stdin.isTTY && !args.alias) {
+    throw new Error(
+      "First-time non-interactive run requires --alias. Provide an explicit alias (or run interactively to configure profiles)."
+    );
+  }
 
   if (args.defaultAlias && !runtime.profileMap.has(args.defaultAlias)) {
     throw new Error(

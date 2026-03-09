@@ -29,10 +29,12 @@ Execution flow:
 
 - Do not use a single `OPENROUTER_API_KEY + OPENROUTER_MODEL_ID` pair.
 - Use 4-step interactive profile input: `apikey -> modelid -> alias -> note(optional)`.
+- For `note(optional)`, accept `skip` / `跳过` / `-` as empty note when chat UI cannot send blank messages.
 - At least one profile entry must exist.
 - Store profiles in `.env` as `OPENROUTER_PROFILE_SET`.
 - Use `OPENROUTER_DEFAULT_ALIAS` as fallback alias.
 - Legacy `alias:key:model` text format is not supported.
+- On first non-interactive run (when `<skill-dir>/.env` does not exist), require explicit `--alias`; do not silently fall back to `default`.
 
 If no profile set exists and the script is interactive, prompt user to enter profile entries.
 
