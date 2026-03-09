@@ -16,8 +16,10 @@ const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
 const SUPPORTED_AGENT_KEYS = ["github-copilot", "claude-code", "cursor", "codex-cli", "generic"];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT_DIR = path.join(process.cwd(), "openrouter");
-const ENV_FILE = path.join(OUTPUT_DIR, ".env");
+const WORKSPACE_DIR = path.resolve(SCRIPT_DIR, "..");
+const OUTPUT_DIR = WORKSPACE_DIR;
+const ENV_DIR = WORKSPACE_DIR; // .env and .env.template location
+const ENV_FILE = path.join(ENV_DIR, ".env");
 const AGENT_PROFILES_FILE = path.join(SCRIPT_DIR, "agent-profiles.json");
 
 const FALLBACK_AGENT_CONFIG = {
@@ -225,7 +227,7 @@ function parseProfileSet(rawProfileSet) {
 
   if (!source.startsWith("[") && !source.startsWith("{")) {
     throw new Error(
-      `Invalid ${PROFILE_SET_ENV_KEY} format. Only JSON profile set is supported now.`
+      `Invalid ${PROFILE_SET_ENV_KEY} format. Use JSON like OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"<key>","modelId":"openrouter/auto","note":""}]`
     );
   }
 

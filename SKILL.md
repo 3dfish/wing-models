@@ -1,5 +1,5 @@
 ---
-name: openrouter-wingmen
+name: copilot-skill-openrouter-wingmen
 description: "Use this skill whenever the user wants to route part of a message to an OpenRouter model while keeping the rest as local agent instructions. Trigger on requests like '和 openrouter 聊聊', '帮我问问 openrouter', '代问模型', or when the user writes content wrapped with ==...==."
 argument-hint: "user message, alias/model profile"
 ---
@@ -30,11 +30,19 @@ Execution flow:
 - Do not use a single `OPENROUTER_API_KEY + OPENROUTER_MODEL_ID` pair.
 - Use 4-step interactive profile input: `apikey -> modelid -> alias -> note(optional)`.
 - At least one profile entry must exist.
-- Store profiles in `openrouter/.env` as `OPENROUTER_PROFILE_SET`.
+- Store profiles in `.env` as `OPENROUTER_PROFILE_SET`.
 - Use `OPENROUTER_DEFAULT_ALIAS` as fallback alias.
-- Legacy `alias:key:model` text format is removed and must not be used.
+- Legacy `alias:key:model` text format is not supported.
 
 If no profile set exists and the script is interactive, prompt user to enter profile entries.
+
+When an agent needs to create `.env` directly, use this exact template:
+
+```env
+OPENROUTER_DEFAULT_ALIAS=default
+OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"<your-openrouter-api-key>","modelId":"openrouter/auto","note":""}]
+OPENCLAW_AGENT_PROFILE=github-copilot
+```
 
 ## Multi-Agent Compatibility
 
@@ -45,17 +53,17 @@ If no profile set exists and the script is interactive, prompt user to enter pro
 
 ## Output Contract
 
-- Save outputs under `<cwd>/openrouter/`.
+- Save outputs under `<skill-dir>/` (skill root, no `openrouter/` subfolder).
 - Dialogue outputs: `*-dialogue.md` (question + answer; attachment sections record paths only)
 - Attachment outputs: `*-attachment-<n>.<ext>` files
-- Credentials file: `openrouter/.env`
+- Credentials file: `.env`
 - Always print OpenRouter reply immediately in chat.
 
 ## Security Rules (Mandatory)
 
 - Never print API keys in chat or terminal logs.
 - Prefer interactive/env-based profile setup over command-line key arguments.
-- If credentials are missing, collect in chat and persist to `openrouter/.env` with restrictive permissions.
+- If credentials are missing, collect in chat and persist to `.env` with restrictive permissions.
 
 ## Large File Authorization (Mandatory)
 
