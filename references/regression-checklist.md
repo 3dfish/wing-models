@@ -12,6 +12,7 @@ Use this checklist after changing relay behavior, command parsing, output render
 ## Alias Credential Set
 
 - [ ] Missing profile set triggers required interactive 3-step prompt: `alias -> apikey -> modelid` (`note` optional).
+- [ ] First profile entry does not auto-fill alias/modelid from template defaults; fields are entered step-by-step.
 - [ ] At least one profile is required.
 - [ ] Invalid alias format is rejected with clear error.
 - [ ] Legacy `alias:key:model` profile format is rejected with clear error.

@@ -29,6 +29,8 @@ Execution flow:
 
 - Do not use a single `OPENROUTER_API_KEY + OPENROUTER_MODEL_ID` pair.
 - Use required 3-step interactive profile input: `alias -> apikey -> modelid`.
+- For every credential entry (including the first one), collect `alias`, `apikey`, and `modelid` one-by-one in chat.
+- Never auto-fill first-entry `alias`/`modelid` from template defaults.
 - `note` is optional and may be left empty; accept `skip` / `跳过` / `-` as empty note when chat UI cannot send blank messages.
 - At least one profile entry must exist.
 - Store profiles in `.3rd.env` as `OPENROUTER_PROFILE_SET`.
@@ -38,11 +40,11 @@ Execution flow:
 
 If no profile set exists and the script is interactive, prompt user to enter profile entries.
 
-When an agent needs to create `.3rd.env` directly, use this exact template:
+When an agent needs to create `.3rd.env` directly after collecting fields in chat, use this structure:
 
 ```env
-OPENROUTER_DEFAULT_ALIAS=default
-OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"<your-openrouter-api-key>","modelId":"openrouter/auto","note":""}]
+OPENROUTER_DEFAULT_ALIAS=<default-alias-from-chat>
+OPENROUTER_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","modelId":"<model-id-from-chat>","note":""}]
 OPENCLAW_AGENT_PROFILE=github-copilot
 ```
 

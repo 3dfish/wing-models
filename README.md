@@ -5,6 +5,8 @@
 核心变化：不再使用单一 `apikey + model`，而是使用凭据条目集合：
 
 - 必填 3 步录入：`别名 -> apikey -> modelid`
+- 首条凭据也必须逐项录入，不能跳过别名和 modelid
+- 为保证多 agent 一致性，凭据录入统一在聊天框逐项采集
 - 备注为可选项（可留空）
 - 至少配置一条
 - 调用时通过 `alias` 选择模型与密钥
@@ -61,6 +63,10 @@ npm install --prefix ./scripts
 - 备注 note（可选，可直接回车留空；若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
 - 是否继续新增下一条
 - 默认别名（default alias）
+
+约束：
+
+- 即使是第一条凭据，也必须按上面字段逐项输入，不允许直接套用默认 alias/modelid 模板跳过步骤。
 
 ## 快速开始
 
@@ -135,10 +141,14 @@ node ./scripts/openrouter_capture.mjs --check-agent-consistency
 推荐模板（可直接用于 `.3rd.env`，模板文件为仓库根目录 `.3rd.env.template`）：
 
 ```env
-OPENROUTER_DEFAULT_ALIAS=default
-OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"<your-openrouter-api-key>","modelId":"openrouter/auto","note":""}]
+OPENROUTER_DEFAULT_ALIAS=<default-alias-from-chat>
+OPENROUTER_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","modelId":"<model-id-from-chat>","note":""}]
 OPENCLAW_AGENT_PROFILE=github-copilot
 ```
+
+提示：
+
+- 上述占位值应来自聊天逐项采集结果，不应保留 `default` / `openrouter/auto` 作为首条凭据的隐式默认。
 
 注意：
 
