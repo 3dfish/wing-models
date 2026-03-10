@@ -28,8 +28,8 @@ Execution flow:
 ## Alias Credential Set (Mandatory)
 
 - Do not use a single `OPENROUTER_API_KEY + OPENROUTER_MODEL_ID` pair.
-- Use 4-step interactive profile input: `apikey -> modelid -> alias -> note(optional)`.
-- For `note(optional)`, accept `skip` / `跳过` / `-` as empty note when chat UI cannot send blank messages.
+- Use required 3-step interactive profile input: `alias -> apikey -> modelid`.
+- `note` is optional and may be left empty; accept `skip` / `跳过` / `-` as empty note when chat UI cannot send blank messages.
 - At least one profile entry must exist.
 - Store profiles in `.3rd.env` as `OPENROUTER_PROFILE_SET`.
 - Use `OPENROUTER_DEFAULT_ALIAS` as fallback alias.

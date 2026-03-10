@@ -14,6 +14,7 @@ const PROFILE_SET_ENV_KEY = "OPENROUTER_PROFILE_SET";
 const DEFAULT_ALIAS_ENV_KEY = "OPENROUTER_DEFAULT_ALIAS";
 const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
 const SUPPORTED_AGENT_KEYS = ["github-copilot", "claude-code", "cursor", "codex-cli", "generic"];
+const ALIAS_PATTERN = /^[\p{L}\p{N}._-]+$/u;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const WORKING_DIR = process.cwd();
@@ -118,7 +119,7 @@ function printHelp() {
   );
   console.log("Repeat --attachment to attach multiple files. If prompt is omitted and attachments are provided, attachment-only input is sent.");
   console.log("`--image` remains available as a deprecated alias of `--attachment`.");
-  console.log("Credential setup uses 4-step interaction per entry: apikey -> modelid -> alias -> note(optional).");
+  console.log("Credential setup uses required steps: alias -> apikey -> modelid; optional: note.");
 }
 
 function normalizeAgentConfig(rawConfig) {
@@ -195,6 +196,10 @@ function resolveAgentProfile(agentArg, agentConfig) {
   };
 }
 
+function isValidAlias(alias) {
+  return ALIAS_PATTERN.test(alias);
+}
+
 function parseProfileObject(rawObject, indexHint = "?") {
   if (!rawObject || typeof rawObject !== "object") {
     throw new Error(`Invalid profile object at index=${indexHint}.`);
@@ -209,8 +214,8 @@ function parseProfileObject(rawObject, indexHint = "?") {
     throw new Error(`Invalid profile object at index=${indexHint}. alias/apiKey/modelId are required.`);
   }
 
-  if (!/^[A-Za-z0-9._-]+$/.test(alias)) {
-    throw new Error(`Invalid alias: ${alias}. Allowed characters: letters, numbers, dot, underscore, hyphen.`);
+  if (!isValidAlias(alias)) {
+    throw new Error(`Invalid alias: ${alias}. Allowed characters: Unicode letters/numbers, dot, underscore, hyphen.`);
   }
 
   return { alias, apiKey, modelId, note };
@@ -341,14 +346,14 @@ async function promptProfileSetFromUser() {
 
   try {
     while (true) {
-      const apiKey = await askRequiredInput(rl, "API key (required): ");
-      const modelId = await askRequiredInput(rl, "Model id (required): ");
       const alias = await askRequiredInput(rl, "Alias (required): ", (value) => {
-        if (!/^[A-Za-z0-9._-]+$/.test(value)) {
-          throw new Error("Alias can only contain letters, numbers, dot, underscore, hyphen.");
+        if (!isValidAlias(value)) {
+          throw new Error("Alias can only contain Unicode letters/numbers, dot, underscore, hyphen.");
         }
       });
-      const noteRaw = await rl.question("Note (optional, enter skip/跳过/- to leave empty): ");
+      const apiKey = await askRequiredInput(rl, "API key (required): ");
+      const modelId = await askRequiredInput(rl, "Model id (required): ");
+      const noteRaw = await rl.question("Note (optional, press Enter to skip; skip/跳过/- also accepted): ");
       const note = normalizeOptionalNoteInput(noteRaw);
 
       const parsed = parseProfileObject({ alias, apiKey, modelId, note }, profileMap.size + 1);

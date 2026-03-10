@@ -4,7 +4,8 @@
 
 核心变化：不再使用单一 `apikey + model`，而是使用凭据条目集合：
 
-- 通过 4 次交互录入：`apikey -> modelid -> 别名 -> 备注（可选）`
+- 必填 3 步录入：`别名 -> apikey -> modelid`
+- 备注为可选项（可留空）
 - 至少配置一条
 - 调用时通过 `alias` 选择模型与密钥
 
@@ -54,10 +55,10 @@ npm install --prefix ./scripts
 
 首次运行且当前工作目录的 `.3rd.env` 不存在 profile 集合时，脚本会要求输入：
 
+- 别名 alias（必填）
 - API key（必填）
 - Model id（必填）
-- 别名 alias（必填）
-- 备注 note（可选，若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
+- 备注 note（可选，可直接回车留空；若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
 - 是否继续新增下一条
 - 默认别名（default alias）
 
@@ -141,7 +142,7 @@ OPENCLAW_AGENT_PROFILE=github-copilot
 
 注意：
 
-- `alias` 允许字符：字母、数字、`.`、`_`、`-`
+- `alias` 允许字符：Unicode 字母/数字（含中文）、`.`、`_`、`-`
 - 旧格式（`alias:key:model`）不支持
 
 ## 输出约定
