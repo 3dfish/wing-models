@@ -51,14 +51,6 @@ Use this checklist after changing relay behavior, command parsing, output render
 - [ ] `--prompt-file` + multiple `--attachment` arguments work together.
 - [ ] Missing/empty `--prompt-file` yields clear error message.
 
-## Agent Profile Compatibility
-
-- [ ] `--agent github-copilot` and `--agent claude-code` behave consistently for interaction/output markers.
-- [ ] All profiles emit `[ROUTE]`, `[TEXT_FILE]`, and `[TEXT_CONTENT_BEGIN]/[TEXT_CONTENT_END]`.
-- [ ] Unknown `--agent` gracefully falls back to `generic` profile with same behavior.
-- [ ] `--check-agent-consistency` returns `ok=true` for current profile config.
-- [ ] `github-copilot/claude-code/cursor/codex-cli/generic` all keep `inlineTextPreview=true` and `emitRouteMarker=true`.
-
 ## OpenAI-Compatible API Support
 
 - [ ] Default baseURL (`https://api.openai.com/v1`) is used when not specified.

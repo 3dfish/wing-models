@@ -29,7 +29,6 @@ When an agent needs to create `.3rd.env` directly after collecting fields in cha
 ```env
 WING_MODELS_DEFAULT_ALIAS=<default-alias-from-chat>
 WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","baseURL":"https://openrouter.ai/api/v1","modelId":"<model-id-from-chat>","note":""}]
-OPENCLAW_AGENT_PROFILE=github-copilot
 ```
 
 ## Supported Providers
@@ -41,13 +40,6 @@ This skill works with any OpenAI-compatible API, including:
 - Azure OpenAI (`https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`)
 - Local models (e.g., `http://localhost:11434/v1` for Ollama)
 - Any other OpenAI-compatible endpoint
-
-## Multi-Agent Compatibility
-
-- The script supports `--agent` profiles for runtime identification only.
-- Supported profiles: `github-copilot`, `claude-code`, `cursor`, `codex-cli`, `generic`.
-- Interaction must stay consistent across all agents: use chat/text input only.
-- Do not rely on popup/card UI or agent-specific interaction widgets.
 
 ## Output Contract
 
@@ -77,10 +69,6 @@ Before reading saved model output files (`.md` or attachments):
 - Dependency: `openai`
 - Dependency: `dotenv`
 - Credential template: `./.3rd.env.template`
-- Agent profile config: `./scripts/agent-profiles.json`
-- Channel protocol spec: `./references/protocol.md`
-- Agent compatibility reference: `./references/agent-compatibility.md`
-- Regression checklist: `./references/regression-checklist.md`
 
 ## Runtime Readiness Check (Automatic)
 
@@ -117,7 +105,7 @@ npm --version || { echo "npm not found. Please install Node.js with npm."; exit 
 npm list --prefix <skill-dir>/scripts openai dotenv 2>/dev/null || npm install --prefix <skill-dir>/scripts
 
 # Step 4: Proceed with script
-node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt "<prompt>" --agent <agent>
+node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt "<prompt>"
 ```
 
 ### One-time Install Verification
@@ -137,8 +125,7 @@ Call template:
 ```bash
 node <skill-dir>/scripts/wing_models.mjs \
   --alias <alias> \
-  --prompt "<user-prompt>" \
-  --agent <agent-profile>
+  --prompt "<user-prompt>"
 ```
 
 Long prompt template:
@@ -146,8 +133,7 @@ Long prompt template:
 ```bash
 node <skill-dir>/scripts/wing_models.mjs \
   --alias <alias> \
-  --prompt-file <path-to-prompt.txt> \
-  --agent <agent-profile>
+  --prompt-file <path-to-prompt.txt>
 ```
 
 With attachment input (repeatable):
@@ -156,8 +142,7 @@ With attachment input (repeatable):
 node <skill-dir>/scripts/wing_models.mjs \
   --alias <alias> \
   --prompt "<user-prompt>" \
-  --attachment <path-or-url> \
-  --agent <agent-profile>
+  --attachment <path-or-url>
 ```
 
 ## Reliability Notes
@@ -174,4 +159,3 @@ node <skill-dir>/scripts/wing_models.mjs \
 - Model reply printed immediately.
 - No API key exposed in logs.
 - Large-file consent requested when needed.
-- Agent consistency check passes: `node ./scripts/wing_models.mjs --check-agent-consistency`.

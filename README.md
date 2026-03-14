@@ -113,10 +113,8 @@ node ./scripts/wing_models.mjs --list-aliases
 - `--image <path-or-url>`: 兼容旧参数，等价于 `--attachment`（已废弃）
 - `--alias <alias>`: 本次调用使用的别名
 - `--default-alias <alias>`: 指定默认别名（配合 `--save-env` 持久化）
-- `--agent <profile>`: 输出 profile（`github-copilot/claude-code/cursor/codex-cli/generic`）
 - `--list-aliases`: 列出当前 profile 别名与绑定模型
-- `--check-agent-consistency`: 校验各 agent profile 是否保持统一交互契约（`inlineTextPreview=true`、`emitRouteMarker=true`）
-- `--save-env`: 将当前 profile 集、默认别名、agent 配置写入 `.3rd.env`
+- `--save-env`: 将当前 profile 集、默认别名写入 `.3rd.env`
 - `--help`: 查看帮助
 
 首次非交互运行注意：
@@ -124,19 +122,12 @@ node ./scripts/wing_models.mjs --list-aliases
 - 如果当前工作目录 `.3rd.env` 尚不存在，且在非交互环境中执行，必须显式传入 `--alias`，否则脚本会报错。
 - 这样可以避免首次执行被静默回退为 `default`。
 
-一致性校验示例：
-
-```bash
-node ./scripts/wing_models.mjs --check-agent-consistency
-```
-
 ## 凭据存储格式
 
 脚本把 profile 集合写入当前工作目录的 `.3rd.env`：
 
 - `WING_MODELS_PROFILE_SET=[{"alias":"default","apiKey":"***","baseURL":"https://api.openai.com/v1","modelId":"gpt-4o","note":""}]`
 - `WING_MODELS_DEFAULT_ALIAS="alias1"`
-- `OPENCLAW_AGENT_PROFILE="github-copilot"`
 
 说明：
 
@@ -147,7 +138,6 @@ node ./scripts/wing_models.mjs --check-agent-consistency
 ```env
 WING_MODELS_DEFAULT_ALIAS=<default-alias-from-chat>
 WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","baseURL":"https://api.openai.com/v1","modelId":"<model-id-from-chat>","note":""}]
-OPENCLAW_AGENT_PROFILE=github-copilot
 ```
 
 提示：
@@ -176,28 +166,11 @@ OPENCLAW_AGENT_PROFILE=github-copilot
 
 终端标记：
 
-- `[ROUTE] <json>`: 当前 provider/alias/baseURL/model/agent
+- `[ROUTE] <json>`: 当前 provider/alias/baseURL/model
 - `[TEXT_FILE] <path>`
 - `[TEXT_CONTENT_BEGIN] ... [TEXT_CONTENT_END]`
 - `[ATTACHMENT_FILE] <path>`
 - `[RAW_FILE] <path>`
-
-## 多Agent 适配
-
-当前支持：
-
-- GitHub Copilot
-- Claude Code
-- Cursor
-- Codex CLI
-- Generic fallback
-
-交互一致性约束：
-
-- 所有 agent 统一使用聊天/文本输入交互
-- 不依赖卡片或 popup 控件
-
-详见 `references/agent-compatibility.md`。
 
 ## 安全约束
 

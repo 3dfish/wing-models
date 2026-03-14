@@ -14,35 +14,15 @@ const exec = promisify(execCallback);
 const DEFAULT_PROVIDER = "openai-compatible";
 const DEFAULT_MODEL = "gpt-4o";
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_AGENT_PROFILE = "github-copilot";
 
 const PROFILE_SET_ENV_KEY = "WING_MODELS_PROFILE_SET";
 const DEFAULT_ALIAS_ENV_KEY = "WING_MODELS_DEFAULT_ALIAS";
-const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
-const SUPPORTED_AGENT_KEYS = ["github-copilot", "claude-code", "cursor", "codex-cli", "generic"];
 const ALIAS_PATTERN = /^[\p{L}\p{N}._-]+$/u;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const WORKING_DIR = process.cwd();
 const OUTPUT_DIR = WORKING_DIR;
 const ENV_FILE = path.join(WORKING_DIR, ".3rd.env");
-const AGENT_PROFILES_FILE = path.join(SCRIPT_DIR, "agent-profiles.json");
-
-const FALLBACK_AGENT_CONFIG = {
-  default: DEFAULT_AGENT_PROFILE,
-  profiles: {
-    [DEFAULT_AGENT_PROFILE]: {
-      inlineTextPreview: true,
-      emitRouteMarker: true,
-      description: "Default profile for GitHub Copilot.",
-    },
-    generic: {
-      inlineTextPreview: true,
-      emitRouteMarker: true,
-      description: "Fallback profile for unknown agents.",
-    },
-  },
-};
 
 function parseArgs(argv) {
   const positional = [];
@@ -52,9 +32,7 @@ function parseArgs(argv) {
     attachments: [],
     alias: "",
     defaultAlias: "",
-    agentProfile: "",
     listAliases: false,
-    checkAgentConsistency: false,
     saveEnv: false,
     help: false,
   };
@@ -91,17 +69,8 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    if (token === "--agent") {
-      parsed.agentProfile = argv[i + 1] ?? "";
-      i += 1;
-      continue;
-    }
     if (token === "--list-aliases") {
       parsed.listAliases = true;
-      continue;
-    }
-    if (token === "--check-agent-consistency") {
-      parsed.checkAgentConsistency = true;
       continue;
     }
     if (token === "--save-env") {
@@ -121,85 +90,11 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(
-    "Usage: node wing_models.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--agent <profile>] [--list-aliases] [--check-agent-consistency] [--save-env]"
+    "Usage: node wing_models.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--list-aliases] [--save-env]"
   );
   console.log("Repeat --attachment to attach multiple files. If prompt is omitted and attachments are provided, attachment-only input is sent.");
   console.log("`--image` remains available as a deprecated alias of `--attachment`.");
   console.log("Credential setup uses required steps: alias -> apikey -> baseurl -> modelid; optional: note.");
-}
-
-function normalizeAgentConfig(rawConfig) {
-  const sourceProfiles = rawConfig?.profiles && typeof rawConfig.profiles === "object" ? rawConfig.profiles : {};
-  const normalizedProfiles = {};
-
-  for (const key of SUPPORTED_AGENT_KEYS) {
-    const source = sourceProfiles[key] || {};
-    normalizedProfiles[key] = {
-      inlineTextPreview: true,
-      emitRouteMarker: true,
-      description: String(source.description || "Unified chat-input interaction profile."),
-    };
-  }
-
-  const rawDefault = String(rawConfig?.default || "").trim();
-  const defaultKey = SUPPORTED_AGENT_KEYS.includes(rawDefault) ? rawDefault : DEFAULT_AGENT_PROFILE;
-
-  return {
-    default: defaultKey,
-    profiles: normalizedProfiles,
-  };
-}
-
-function checkAgentConsistency(rawConfig) {
-  const sourceProfiles = rawConfig?.profiles && typeof rawConfig.profiles === "object" ? rawConfig.profiles : {};
-  const issues = [];
-
-  for (const key of SUPPORTED_AGENT_KEYS) {
-    const profile = sourceProfiles[key];
-    if (!profile || typeof profile !== "object") {
-      issues.push(`Missing profile: ${key}`);
-      continue;
-    }
-
-    if (profile.inlineTextPreview !== true) {
-      issues.push(`Profile ${key} has inlineTextPreview=${String(profile.inlineTextPreview)} (expected true)`);
-    }
-    if (profile.emitRouteMarker !== true) {
-      issues.push(`Profile ${key} has emitRouteMarker=${String(profile.emitRouteMarker)} (expected true)`);
-    }
-  }
-
-  const rawDefault = String(rawConfig?.default || "").trim();
-  if (!SUPPORTED_AGENT_KEYS.includes(rawDefault)) {
-    issues.push(`Default profile is invalid: ${rawDefault || "(empty)"}`);
-  }
-
-  return {
-    ok: issues.length === 0,
-    issues,
-    supportedProfiles: SUPPORTED_AGENT_KEYS,
-  };
-}
-
-async function loadJsonConfig(filePath, fallbackValue) {
-  try {
-    const raw = await readFile(filePath, "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : fallbackValue;
-  } catch {
-    return fallbackValue;
-  }
-}
-
-function resolveAgentProfile(agentArg, agentConfig) {
-  const profiles = agentConfig?.profiles || {};
-  const requested = String(agentArg || "").trim() || agentConfig?.default || DEFAULT_AGENT_PROFILE;
-  const profile = profiles[requested] || profiles.generic || FALLBACK_AGENT_CONFIG.profiles.generic;
-
-  return {
-    key: profiles[requested] ? requested : "generic",
-    ...profile,
-  };
 }
 
 function isValidAlias(alias) {
@@ -669,7 +564,6 @@ async function saveWorkspaceEnvFile(runtimeEnv) {
     "# Wing-Models runtime variables for current working directory",
     `${PROFILE_SET_ENV_KEY}=${runtimeEnv.profileSetRaw}`,
     `${DEFAULT_ALIAS_ENV_KEY}=${runtimeEnv.defaultAlias}`,
-    `${AGENT_PROFILE_ENV_KEY}=${runtimeEnv.agentProfile}`,
     "",
   ].join("\n");
 
@@ -869,14 +763,13 @@ function extractTextAndAttachments(response) {
   };
 }
 
-function printRouteMarker(routeInfo, agentProfile) {
+function printRouteMarker(routeInfo) {
   const payload = {
     provider: routeInfo.provider,
     alias: routeInfo.alias,
     baseURL: routeInfo.baseURL,
     model: routeInfo.modelId,
     source: routeInfo.source,
-    agent: agentProfile.key,
   };
 
   console.log(`[ROUTE] ${JSON.stringify(payload)}`);
@@ -898,7 +791,6 @@ async function writeDialogueResult({
   answerText,
   inputAttachmentPaths,
   outputAttachmentPaths,
-  agentProfile,
 }) {
   const filePath = path.join(OUTPUT_DIR, `${stamp}-dialogue.md`);
   const safePrompt = String(promptText || "").trim() || "(attachment-only request)";
@@ -911,7 +803,6 @@ async function writeDialogueResult({
     `- Model: \`${modelId}\``,
     `- Base URL: \`${baseURL}\``,
     `- Time: ${new Date().toISOString()}`,
-    `- Agent Profile: ${agentProfile.key}`,
     "",
     "## Question",
     "",
@@ -1046,7 +937,6 @@ async function loadRuntimeState() {
 
   const envProfileSetRaw = String(process.env[PROFILE_SET_ENV_KEY] || "").trim();
   const envDefaultAlias = String(process.env[DEFAULT_ALIAS_ENV_KEY] || "").trim();
-  const envAgentProfile = String(process.env[AGENT_PROFILE_ENV_KEY] || "").trim();
 
   const profileMap = parseProfileSet(envProfileSetRaw);
 
@@ -1055,7 +945,6 @@ async function loadRuntimeState() {
     return {
       profileMap: seeded.profileMap,
       defaultAlias: seeded.defaultAlias,
-      envAgentProfile,
       envFileExists,
       profileSeededInteractively: true,
     };
@@ -1067,7 +956,6 @@ async function loadRuntimeState() {
   return {
     profileMap,
     defaultAlias,
-    envAgentProfile,
     envFileExists,
     profileSeededInteractively: false,
   };
@@ -1077,18 +965,6 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
-    return;
-  }
-
-  const rawAgentConfig = await loadJsonConfig(AGENT_PROFILES_FILE, FALLBACK_AGENT_CONFIG);
-  const agentConfig = normalizeAgentConfig(rawAgentConfig);
-
-  if (args.checkAgentConsistency) {
-    const report = checkAgentConsistency(rawAgentConfig);
-    console.log(`[AGENT_COMPAT] ${JSON.stringify(report)}`);
-    if (!report.ok) {
-      process.exitCode = 1;
-    }
     return;
   }
 
@@ -1114,7 +990,6 @@ async function main() {
     return;
   }
 
-  const agentProfile = resolveAgentProfile(args.agentProfile || runtime.envAgentProfile, agentConfig);
   const selectedAlias = await resolveSelectedAlias(args.alias, configuredDefaultAlias, runtime.profileMap);
   const selectedProfile = runtime.profileMap.get(selectedAlias.alias);
 
@@ -1122,33 +997,27 @@ async function main() {
     args.saveEnv ||
     runtime.profileSeededInteractively ||
     !process.env[PROFILE_SET_ENV_KEY] ||
-    !process.env[DEFAULT_ALIAS_ENV_KEY] ||
-    !process.env[AGENT_PROFILE_ENV_KEY];
+    !process.env[DEFAULT_ALIAS_ENV_KEY];
 
   process.env[PROFILE_SET_ENV_KEY] = serializeProfileSet(runtime.profileMap);
   process.env[DEFAULT_ALIAS_ENV_KEY] = configuredDefaultAlias;
-  process.env[AGENT_PROFILE_ENV_KEY] = agentProfile.key;
 
   if (shouldSaveEnv) {
     await saveWorkspaceEnvFile({
       profileSetRaw: process.env[PROFILE_SET_ENV_KEY],
       defaultAlias: process.env[DEFAULT_ALIAS_ENV_KEY],
-      agentProfile: process.env[AGENT_PROFILE_ENV_KEY],
     });
   }
 
   const effectiveBaseURL = selectedProfile.baseURL || DEFAULT_BASE_URL;
 
-  printRouteMarker(
-    {
-      provider: DEFAULT_PROVIDER,
-      alias: selectedAlias.alias,
-      baseURL: effectiveBaseURL,
-      modelId: selectedProfile.modelId,
-      source: selectedAlias.source,
-    },
-    agentProfile
-  );
+  printRouteMarker({
+    provider: DEFAULT_PROVIDER,
+    alias: selectedAlias.alias,
+    baseURL: effectiveBaseURL,
+    modelId: selectedProfile.modelId,
+    source: selectedAlias.source,
+  });
 
   const dialogueStamp = stampNow();
   const prompt = await getPrompt(args);
@@ -1186,7 +1055,6 @@ async function main() {
     answerText: parsed.text,
     inputAttachmentPaths: inputAttachments.savedPaths,
     outputAttachmentPaths,
-    agentProfile,
   });
 
   if (!parsed.text && parsed.attachments.length === 0) {
