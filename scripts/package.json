@@ -1,14 +1,14 @@
 {
-  "name": "openrouter-wingmen-script",
+  "name": "wing-models-script",
   "version": "1.0.0",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {
-    "check:agent-compat": "node ./openrouter_capture.mjs --check-agent-consistency"
+    "check:agent-compat": "node ./wing_models.mjs --check-agent-consistency"
   },
   "dependencies": {
-    "@openrouter/sdk": "^0.9.11",
+    "openai": "^4.103.0",
     "dotenv": "^17.3.1"
   }
 }

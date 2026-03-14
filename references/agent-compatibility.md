@@ -1,6 +1,6 @@
 # Agent Compatibility
 
-This skill can be used from multiple agent runtimes via `openrouter_capture.mjs --agent <profile>`.
+This skill can be used from multiple agent runtimes via `wing_models.mjs --agent <profile>`.
 
 Interaction policy:
 
@@ -8,7 +8,7 @@ Interaction policy:
 - Do not rely on card-style or popup-specific UI.
 - Agent profiles are kept for runtime identification and diagnostics.
 - All agents must follow the same `==...==` dual-channel parsing contract defined in `references/protocol.md`.
-- Credential onboarding must also be consistent across agents: collect `alias`, `apikey`, and `modelid` in chat one-by-one, including the first profile entry.
+- Credential onboarding must also be consistent across agents: collect `alias`, `apikey`, `baseURL`, and `modelid` in chat one-by-one, including the first profile entry.
 
 ## Supported Profiles
 
@@ -26,14 +26,14 @@ Interaction policy:
 ## Usage Examples
 
 ```bash
-node ./scripts/openrouter_capture.mjs \
+node ./scripts/wing_models.mjs \
   --agent github-copilot \
   --alias default \
   --prompt "Summarize this spec"
 ```
 
 ```bash
-node ./scripts/openrouter_capture.mjs \
+node ./scripts/wing_models.mjs \
   --agent claude-code \
   --alias work \
   --prompt-file ./tmp/prompt.txt
@@ -41,12 +41,12 @@ node ./scripts/openrouter_capture.mjs \
 
 ## Output Markers
 
-- `[ROUTE] { ... }` call metadata for diagnostics
+- `[ROUTE] { ... }` call metadata for diagnostics (includes baseURL)
 - `[TEXT_FILE] <path>` canonical markdown output
 - `[TEXT_CONTENT_BEGIN] ... [TEXT_CONTENT_END]` inline preview (all profiles)
 - `[ATTACHMENT_FILE] <path>` saved attachment outputs when the model returns attachments
 
 ## Consistency Guard
 
-- Run `node ./scripts/openrouter_capture.mjs --check-agent-consistency` to validate profile parity.
+- Run `node ./scripts/wing_models.mjs --check-agent-consistency` to validate profile parity.
 - Expected result: `ok=true`, and no per-agent behavior drift on marker/preview toggles.

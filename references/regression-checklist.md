@@ -6,31 +6,31 @@ Use this checklist after changing relay behavior, command parsing, output render
 
 - [ ] Unified parsing is based on `==...==` across all turns.
 - [ ] Alias resolution remains explicit alias first, then default alias.
-- [ ] OpenRouter response prints immediately after each call.
+- [ ] Model response prints immediately after each call.
 - [ ] Assistant-local text is handled without being forwarded.
 
 ## Alias Credential Set
 
-- [ ] Missing profile set triggers required interactive 3-step prompt: `alias -> apikey -> modelid` (`note` optional).
+- [ ] Missing profile set triggers required interactive prompt: `alias -> apikey -> baseURL -> modelid` (`note` optional, `baseURL` defaults to `https://api.openai.com/v1`).
 - [ ] First profile entry does not auto-fill alias/modelid from template defaults; fields are entered step-by-step.
 - [ ] At least one profile is required.
 - [ ] Invalid alias format is rejected with clear error.
 - [ ] Legacy `alias:key:model` profile format is rejected with clear error.
-- [ ] `--list-aliases` prints aliases and bound model ids.
+- [ ] `--list-aliases` prints aliases, bound model ids, and baseURLs.
 - [ ] `--alias` selects correct profile for request.
 - [ ] Missing `--alias` falls back to default alias (with interactive default option in TTY).
 
 ## Delimiter Behavior (`==...==`)
 
-- [ ] No complete pair: no OpenRouter call; full message remains assistant-local.
-- [ ] Single pair: only inside text is sent to OpenRouter.
+- [ ] No complete pair: no model call; full message remains assistant-local.
+- [ ] Single pair: only inside text is sent to model.
 - [ ] Mixed text (`outside ==inside== outside`): inside sent, outside kept local.
 - [ ] Multiple pairs: all inside texts are merged in encounter order and sent in one call.
 - [ ] Unmatched delimiter is treated as plain assistant-local text.
 
 ## Output Timing
 
-- [ ] Each OpenRouter call is followed by immediate standalone reply output.
+- [ ] Each model call is followed by immediate standalone reply output.
 - [ ] No delayed batched rendering at loop end.
 - [ ] Each call writes one `*-dialogue.md` containing question and answer sections.
 - [ ] Dialogue markdown records attachment paths only for input/output attachment sections.
@@ -68,3 +68,12 @@ Use this checklist after changing relay behavior, command parsing, output render
 - [ ] Unknown `--agent` gracefully falls back to `generic` profile with same behavior.
 - [ ] `--check-agent-consistency` returns `ok=true` for current profile config.
 - [ ] `github-copilot/claude-code/cursor/codex-cli/generic` all keep `inlineTextPreview=true` and `emitRouteMarker=true`.
+
+## OpenAI-Compatible API Support
+
+- [ ] Default baseURL (`https://api.openai.com/v1`) is used when not specified.
+- [ ] Custom baseURL is correctly passed to OpenAI client.
+- [ ] OpenRouter (`https://openrouter.ai/api/v1`) works as alternative baseURL.
+- [ ] Local models (e.g., Ollama at `http://localhost:11434/v1`) work as baseURL.
+- [ ] Profile set includes baseURL in each entry.
+- [ ] `[ROUTE]` marker includes baseURL for debugging.

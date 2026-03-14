@@ -11,7 +11,7 @@ This file defines the authoritative parsing and execution protocol for all turns
 ## Delimiter Rule
 
 - Delimiter tokens: `==` opening and `==` closing.
-- Each complete pair `==...==` marks one OpenRouter segment.
+- Each complete pair `==...==` marks one model segment.
 - Text outside any complete pair is assistant-local segment.
 
 ## Parsing Algorithm
@@ -31,36 +31,36 @@ This file defines the authoritative parsing and execution protocol for all turns
 ## Execution Rules
 
 1. If third-party segment is non-empty:
-   - Send it to OpenRouter using resolved alias/model.
+   - Send it to the configured OpenAI-compatible model using resolved alias/model/baseURL.
 2. If third-party segment is empty:
-   - Do not call OpenRouter for that turn.
+   - Do not call the model for that turn.
 3. If assistant-local segment is non-empty:
    - Treat it as instructions for the assistant only.
-   - Never include it in OpenRouter prompt.
+   - Never include it in model prompt.
 
 ## Examples
 
 - Input: `请你总结一下这份规范`
   - Third-party: empty
   - Assistant-local: `请你总结一下这份规范`
-  - Action: no OpenRouter call
+  - Action: no model call
 
 - Input: `==请用三点总结这份规范==`
   - Third-party: `请用三点总结这份规范`
   - Assistant-local: empty
-  - Action: call OpenRouter
+  - Action: call model
 
 - Input: `先别解释太多，==比较 gpt 和 claude 的风格==然后给我一个结论`
   - Third-party: `比较 gpt 和 claude 的风格`
   - Assistant-local: `先别解释太多，然后给我一个结论`
-  - Action: call OpenRouter with inside text only
+  - Action: call model with inside text only
 
 - Input: `A==Q1==B==Q2==C`
   - Third-party: `Q1\n\nQ2`
   - Assistant-local: `ABC`
-  - Action: call OpenRouter once with merged third-party content
+  - Action: call model once with merged third-party content
 
 - Input: `这是未闭合 == 内容`
   - Third-party: empty
   - Assistant-local: `这是未闭合 == 内容`
-  - Action: no OpenRouter call
+  - Action: no model call

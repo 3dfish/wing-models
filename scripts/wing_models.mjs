@@ -1,17 +1,23 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parse as parseDotEnv } from "dotenv";
+import { exec as execCallback } from "node:child_process";
+import { promisify } from "node:util";
+import OpenAI from "openai";
 
-const DEFAULT_PROVIDER = "openrouter";
-const DEFAULT_MODEL = "openrouter/auto";
+const exec = promisify(execCallback);
+
+const DEFAULT_PROVIDER = "openai-compatible";
+const DEFAULT_MODEL = "gpt-4o";
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_AGENT_PROFILE = "github-copilot";
 
-const PROFILE_SET_ENV_KEY = "OPENROUTER_PROFILE_SET";
-const DEFAULT_ALIAS_ENV_KEY = "OPENROUTER_DEFAULT_ALIAS";
+const PROFILE_SET_ENV_KEY = "WING_MODELS_PROFILE_SET";
+const DEFAULT_ALIAS_ENV_KEY = "WING_MODELS_DEFAULT_ALIAS";
 const AGENT_PROFILE_ENV_KEY = "OPENCLAW_AGENT_PROFILE";
 const SUPPORTED_AGENT_KEYS = ["github-copilot", "claude-code", "cursor", "codex-cli", "generic"];
 const ALIAS_PATTERN = /^[\p{L}\p{N}._-]+$/u;
@@ -115,11 +121,11 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(
-    "Usage: node openrouter_capture.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--agent <profile>] [--list-aliases] [--check-agent-consistency] [--save-env]"
+    "Usage: node wing_models.mjs [--prompt \"<message>\" | --prompt-file <file>] [--attachment <path-or-url>] [--alias <alias>] [--default-alias <alias>] [--agent <profile>] [--list-aliases] [--check-agent-consistency] [--save-env]"
   );
   console.log("Repeat --attachment to attach multiple files. If prompt is omitted and attachments are provided, attachment-only input is sent.");
   console.log("`--image` remains available as a deprecated alias of `--attachment`.");
-  console.log("Credential setup uses required steps: alias -> apikey -> modelid; optional: note.");
+  console.log("Credential setup uses required steps: alias -> apikey -> baseurl -> modelid; optional: note.");
 }
 
 function normalizeAgentConfig(rawConfig) {
@@ -207,6 +213,7 @@ function parseProfileObject(rawObject, indexHint = "?") {
 
   const alias = String(rawObject.alias || "").trim();
   const apiKey = String(rawObject.apiKey || "").trim();
+  const baseURL = String(rawObject.baseURL || "").trim() || DEFAULT_BASE_URL;
   const modelId = String(rawObject.modelId || "").trim();
   const note = String(rawObject.note || "").trim();
 
@@ -218,7 +225,7 @@ function parseProfileObject(rawObject, indexHint = "?") {
     throw new Error(`Invalid alias: ${alias}. Allowed characters: Unicode letters/numbers, dot, underscore, hyphen.`);
   }
 
-  return { alias, apiKey, modelId, note };
+  return { alias, apiKey, baseURL, modelId, note };
 }
 
 function parseProfileSet(rawProfileSet) {
@@ -231,7 +238,7 @@ function parseProfileSet(rawProfileSet) {
 
   if (!source.startsWith("[") && !source.startsWith("{")) {
     throw new Error(
-      `Invalid ${PROFILE_SET_ENV_KEY} format. Use JSON like OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"<key>","modelId":"openrouter/auto","note":""}]`
+      `Invalid ${PROFILE_SET_ENV_KEY} format. Use JSON like WING_MODELS_PROFILE_SET=[{"alias":"default","apiKey":"<key>","baseURL":"https://api.openai.com/v1","modelId":"gpt-4o","note":""}]`
     );
   }
 
@@ -352,11 +359,13 @@ async function promptProfileSetFromUser() {
         }
       });
       const apiKey = await askRequiredInput(rl, "API key (required): ");
+      const baseURLRaw = await rl.question(`Base URL (optional, press Enter for default: ${DEFAULT_BASE_URL}): `);
+      const baseURL = baseURLRaw.trim() || DEFAULT_BASE_URL;
       const modelId = await askRequiredInput(rl, "Model id (required): ");
       const noteRaw = await rl.question("Note (optional, press Enter to skip; skip/跳过/- also accepted): ");
       const note = normalizeOptionalNoteInput(noteRaw);
 
-      const parsed = parseProfileObject({ alias, apiKey, modelId, note }, profileMap.size + 1);
+      const parsed = parseProfileObject({ alias, apiKey, baseURL, modelId, note }, profileMap.size + 1);
       profileMap.set(parsed.alias, parsed);
       console.log(`Registered alias: ${parsed.alias}`);
 
@@ -431,7 +440,8 @@ function listAliases(profileMap, defaultAlias) {
     const profile = profileMap.get(alias);
     const isDefault = alias === defaultAlias ? " (default)" : "";
     const note = profile.note ? ` | note: ${profile.note}` : "";
-    console.log(`- ${alias}${isDefault} -> ${profile.modelId}${note}`);
+    const baseUrl = profile.baseURL || DEFAULT_BASE_URL;
+    console.log(`- ${alias}${isDefault} -> ${profile.modelId} @ ${baseUrl}${note}`);
   }
 }
 
@@ -656,7 +666,7 @@ async function loadWorkspaceEnvFile() {
 
 async function saveWorkspaceEnvFile(runtimeEnv) {
   const content = [
-    "# OpenRouter/OpenClaw runtime variables for current working directory",
+    "# Wing-Models runtime variables for current working directory",
     `${PROFILE_SET_ENV_KEY}=${runtimeEnv.profileSetRaw}`,
     `${DEFAULT_ALIAS_ENV_KEY}=${runtimeEnv.defaultAlias}`,
     `${AGENT_PROFILE_ENV_KEY}=${runtimeEnv.agentProfile}`,
@@ -863,6 +873,7 @@ function printRouteMarker(routeInfo, agentProfile) {
   const payload = {
     provider: routeInfo.provider,
     alias: routeInfo.alias,
+    baseURL: routeInfo.baseURL,
     model: routeInfo.modelId,
     source: routeInfo.source,
     agent: agentProfile.key,
@@ -882,6 +893,7 @@ async function writeDialogueResult({
   stamp,
   modelId,
   alias,
+  baseURL,
   promptText,
   answerText,
   inputAttachmentPaths,
@@ -893,10 +905,11 @@ async function writeDialogueResult({
   const safeAnswer = String(answerText || "").trim() || "(no text response)";
 
   const markdown = [
-    "# OpenRouter Dialogue",
+    "# Wing-Models Dialogue",
     "",
     `- Alias: ${alias}`,
     `- Model: \`${modelId}\``,
+    `- Base URL: \`${baseURL}\``,
     `- Time: ${new Date().toISOString()}`,
     `- Agent Profile: ${agentProfile.key}`,
     "",
@@ -1017,7 +1030,7 @@ async function getPrompt(parsedArgs) {
   }
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = (await rl.question("Enter prompt to send to OpenRouter: ")).trim();
+  const answer = (await rl.question("Enter prompt to send: ")).trim();
   rl.close();
 
   if (!answer) {
@@ -1124,10 +1137,13 @@ async function main() {
     });
   }
 
+  const effectiveBaseURL = selectedProfile.baseURL || DEFAULT_BASE_URL;
+
   printRouteMarker(
     {
       provider: DEFAULT_PROVIDER,
       alias: selectedAlias.alias,
+      baseURL: effectiveBaseURL,
       modelId: selectedProfile.modelId,
       source: selectedAlias.source,
     },
@@ -1139,19 +1155,19 @@ async function main() {
   const inputAttachments = await resolveAttachmentInputs(args.attachments, dialogueStamp);
   const userContent = buildUserMessageContent(prompt, inputAttachments.requestParts);
 
-  const { OpenRouter } = await import("@openrouter/sdk");
-  const client = new OpenRouter({ apiKey: selectedProfile.apiKey });
+  const client = new OpenAI({
+    apiKey: selectedProfile.apiKey,
+    baseURL: effectiveBaseURL,
+  });
 
-  const response = await client.chat.send({
-    chatGenerationParams: {
-      model: selectedProfile.modelId || DEFAULT_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: userContent,
-        },
-      ],
-    },
+  const response = await client.chat.completions.create({
+    model: selectedProfile.modelId || DEFAULT_MODEL,
+    messages: [
+      {
+        role: "user",
+        content: userContent,
+      },
+    ],
   });
 
   const parsed = extractTextAndAttachments(response);
@@ -1165,6 +1181,7 @@ async function main() {
     stamp: dialogueStamp,
     modelId: selectedProfile.modelId || DEFAULT_MODEL,
     alias: selectedAlias.alias,
+    baseURL: effectiveBaseURL,
     promptText: prompt,
     answerText: parsed.text,
     inputAttachmentPaths: inputAttachments.savedPaths,
@@ -1175,7 +1192,7 @@ async function main() {
   if (!parsed.text && parsed.attachments.length === 0) {
     const fallbackPath = path.join(OUTPUT_DIR, `${stampNow()}-raw-response.md`);
     const raw = [
-      "# OpenRouter Raw Response",
+      "# Wing-Models Raw Response",
       "",
       "No text/attachment blocks were detected. Raw JSON is preserved below.",
       "",

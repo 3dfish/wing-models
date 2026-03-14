@@ -1,15 +1,26 @@
-# OpenRouter Wingmen
+# Wing-Models
 
-`openrouter-wingmen` 在 GitHub Copilot 场景下实现了 OpenClaw Gateway 的部分能力，当前聚焦于 OpenRouter 调用链。
+`wing-models` 在 GitHub Copilot 场景下实现了 OpenClaw Gateway 的部分能力，当前聚焦于 OpenAI 兼容 API 调用链。
 
 核心变化：不再使用单一 `apikey + model`，而是使用凭据条目集合：
 
 - 必填 3 步录入：`别名 -> apikey -> modelid`
+- 可选录入：`baseURL`（默认为 `https://api.openai.com/v1`）
 - 首条凭据也必须逐项录入，不能跳过别名和 modelid
 - 为保证多 agent 一致性，凭据录入统一在聊天框逐项采集
 - 备注为可选项（可留空）
 - 至少配置一条
 - 调用时通过 `alias` 选择模型与密钥
+
+## 支持的提供商
+
+本工具兼容所有 OpenAI SDK 兼容的 API：
+
+- OpenAI（默认：`https://api.openai.com/v1`）
+- OpenRouter（`https://openrouter.ai/api/v1`）
+- Azure OpenAI
+- 本地模型（如 Ollama：`http://localhost:11434/v1`）
+- 其他任何 OpenAI 兼容端点
 
 ## 交互入口
 
@@ -19,9 +30,9 @@
 ## 双通道消息规则
 
 - 在任意时刻，用户消息中 `==...==` 内的内容会被视为第三方模型输入。
-- `==...==` 外侧内容只给当前 agent，本地处理，不会转发到 OpenRouter。
-- 没有完整 `==...==` 成对标记时，不调用 OpenRouter。
-- 多个 `==...==` 片段会按出现顺序合并后一次发送给 OpenRouter。
+- `==...==` 外侧内容只给当前 agent，本地处理，不会转发到模型。
+- 没有完整 `==...==` 成对标记时，不调用模型。
+- 多个 `==...==` 片段会按出现顺序合并后一次发送给模型。
 
 ## 仓库结构
 
@@ -36,7 +47,7 @@
 |   `-- regression-checklist.md
 `-- scripts/
     |-- agent-profiles.json
-    |-- openrouter_capture.mjs
+    |-- wing_models.mjs
     |-- package.json
     `-- package-lock.json
 ```
@@ -45,7 +56,7 @@
 
 - Node.js 18+
 - npm
-- OpenRouter API key（至少一条 profile）
+- OpenAI 兼容 API key（至少一条 profile）
 
 ## 安装
 
@@ -59,6 +70,7 @@ npm install --prefix ./scripts
 
 - 别名 alias（必填）
 - API key（必填）
+- Base URL（可选，默认为 `https://api.openai.com/v1`）
 - Model id（必填）
 - 备注 note（可选，可直接回车留空；若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
 - 是否继续新增下一条
@@ -73,7 +85,7 @@ npm install --prefix ./scripts
 1. 常规调用（建议显式传 alias）
 
 ```bash
-node ./scripts/openrouter_capture.mjs \
+node ./scripts/wing_models.mjs \
   --alias work \
   --prompt "用三句话总结这个仓库"
 ```
@@ -81,7 +93,7 @@ node ./scripts/openrouter_capture.mjs \
 2. 长文本调用
 
 ```bash
-node ./scripts/openrouter_capture.mjs \
+node ./scripts/wing_models.mjs \
   --alias default \
   --prompt-file ./tmp/prompt.txt
 ```
@@ -89,7 +101,7 @@ node ./scripts/openrouter_capture.mjs \
 3. 附件输入（通用）
 
 ```bash
-node ./scripts/openrouter_capture.mjs \
+node ./scripts/wing_models.mjs \
   --alias work \
   --prompt "分析这个附件" \
   --attachment ./assets/a.pdf
@@ -98,7 +110,7 @@ node ./scripts/openrouter_capture.mjs \
 4. 列出已配置别名
 
 ```bash
-node ./scripts/openrouter_capture.mjs --list-aliases
+node ./scripts/wing_models.mjs --list-aliases
 ```
 
 ## CLI 参数
@@ -123,36 +135,37 @@ node ./scripts/openrouter_capture.mjs --list-aliases
 一致性校验示例：
 
 ```bash
-node ./scripts/openrouter_capture.mjs --check-agent-consistency
+node ./scripts/wing_models.mjs --check-agent-consistency
 ```
 
 ## 凭据存储格式
 
 脚本把 profile 集合写入当前工作目录的 `.3rd.env`：
 
-- `OPENROUTER_PROFILE_SET=[{"alias":"default","apiKey":"***","modelId":"openrouter/auto","note":""}]`
-- `OPENROUTER_DEFAULT_ALIAS="alias1"`
+- `WING_MODELS_PROFILE_SET=[{"alias":"default","apiKey":"***","baseURL":"https://api.openai.com/v1","modelId":"gpt-4o","note":""}]`
+- `WING_MODELS_DEFAULT_ALIAS="alias1"`
 - `OPENCLAW_AGENT_PROFILE="github-copilot"`
 
 说明：
 
-- `OPENROUTER_PROFILE_SET` 按原始 JSON 保存（不额外包裹 JSON 字符串转义层），避免在不同 agent/runtime 间反复读写时出现逐层反斜杠转义累积。
+- `WING_MODELS_PROFILE_SET` 按原始 JSON 保存（不额外包裹 JSON 字符串转义层），避免在不同 agent/runtime 间反复读写时出现逐层反斜杠转义累积。
 
 推荐模板（可直接用于 `.3rd.env`，模板文件为仓库根目录 `.3rd.env.template`）：
 
 ```env
-OPENROUTER_DEFAULT_ALIAS=<default-alias-from-chat>
-OPENROUTER_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","modelId":"<model-id-from-chat>","note":""}]
+WING_MODELS_DEFAULT_ALIAS=<default-alias-from-chat>
+WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","baseURL":"https://api.openai.com/v1","modelId":"<model-id-from-chat>","note":""}]
 OPENCLAW_AGENT_PROFILE=github-copilot
 ```
 
 提示：
 
-- 上述占位值应来自聊天逐项采集结果，不应保留 `default` / `openrouter/auto` 作为首条凭据的隐式默认。
+- 上述占位值应来自聊天逐项采集结果，不应保留 `default` / `gpt-4o` 作为首条凭据的隐式默认。
 
 注意：
 
 - `alias` 允许字符：Unicode 字母/数字（含中文）、`.`、`_`、`-`
+- `baseURL` 可选，默认为 `https://api.openai.com/v1`
 - 旧格式（`alias:key:model`）不支持
 
 ## 输出约定
@@ -171,7 +184,7 @@ OPENCLAW_AGENT_PROFILE=github-copilot
 
 终端标记：
 
-- `[ROUTE] <json>`: 当前 provider/alias/model/agent
+- `[ROUTE] <json>`: 当前 provider/alias/baseURL/model/agent
 - `[TEXT_FILE] <path>`
 - `[TEXT_CONTENT_BEGIN] ... [TEXT_CONTENT_END]`
 - `[ATTACHMENT_FILE] <path>`
