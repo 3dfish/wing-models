@@ -1,6 +1,6 @@
 ---
 name: wing-models
-description: "Use this skill whenever the user wants to route part of a message to an OpenAI-compatible model while keeping the rest as local agent instructions. Trigger on requests like '和模型聊聊', '帮我问问模型', '代问模型', or when the user writes content wrapped with ==...==."
+description: "Use this skill whenever the user wants to route part of a message to an OpenAI-compatible model while keeping the rest as local agent instructions. Trigger on requests like '和模型聊聊', '帮我问问模型', '代问模型', or when the user writes content wrapped with ==...==alias."
 argument-hint: "user message, alias/model profile"
 ---
 
@@ -10,18 +10,20 @@ This skill packages a repeatable OpenAI-compatible model conversation workflow w
 
 ## Unified Channel Protocol
 
-At any turn, parse user text by the `==...==` rule:
+At any turn, parse user text by the `==...==alias` rule:
 
-- Content inside `==...==` is the third-party model segment and must be sent to the configured model.
-- Content outside `==...==` is assistant-local segment and must never be forwarded to the model.
-- If no complete `==...==` pair exists, treat the whole message as assistant-local only and do not call the model.
+- Syntax: `==<content>==<alias>` where `<alias>` specifies which credential profile to use.
+- Content between `==` and `==` is the third-party model segment and must be sent to the configured model.
+- The `<alias>` after the closing `==` specifies the credential profile. If omitted, use `WING_MODELS_DEFAULT_ALIAS`.
+- Content outside `==...==alias` pairs is assistant-local segment and must never be forwarded to the model.
+- If no complete `==...==alias` pair exists, treat the whole message as assistant-local only and do not call the model.
 - If at least one complete pair exists but the merged inside content is empty after trim, do not call the model.
 
 Execution flow:
 
-1. Resolve alias for this call (explicit alias first, otherwise default alias).
-2. Extract and merge all complete `==...==` segments as model prompt body.
-3. Send only merged inside content to the configured OpenAI-compatible endpoint.
+1. Parse all `==<content>==<alias>` pairs and extract content with alias mappings.
+2. Extract and merge all complete `==...==alias` segments as model prompt body, using the specified alias (or default).
+3. Send only merged inside content to the configured OpenAI-compatible endpoint for the given alias.
 4. Print model reply immediately in chat.
 5. Handle outside content locally as assistant instructions.
 
@@ -187,7 +189,7 @@ node <skill-dir>/scripts/wing_models.mjs \
 ## Completion Checks
 
 - **Runtime readiness verified**: Node.js and npm are available, dependencies are installed.
-- `==...==` channel parsing is applied correctly.
+- `==...==alias` channel parsing is applied correctly.
 - Alias selected correctly (arg or default).
 - Model reply printed immediately.
 - No API key exposed in logs.
