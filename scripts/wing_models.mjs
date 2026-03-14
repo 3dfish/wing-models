@@ -94,7 +94,7 @@ function printHelp() {
   );
   console.log("Repeat --attachment to attach multiple files. If prompt is omitted and attachments are provided, attachment-only input is sent.");
   console.log("`--image` remains available as a deprecated alias of `--attachment`.");
-  console.log("Credential setup uses required steps: alias -> apikey -> baseurl -> modelid; optional: note.");
+  console.log("Credential setup uses required steps: alias -> baseurl -> apikey -> modelid; optional: note.");
 }
 
 function isValidAlias(alias) {
@@ -253,9 +253,9 @@ async function promptProfileSetFromUser() {
           throw new Error("Alias can only contain Unicode letters/numbers, dot, underscore, hyphen.");
         }
       });
-      const apiKey = await askRequiredInput(rl, "API key (required): ");
       const baseURLRaw = await rl.question(`Base URL (optional, press Enter for default: ${DEFAULT_BASE_URL}): `);
       const baseURL = baseURLRaw.trim() || DEFAULT_BASE_URL;
+      const apiKey = await askRequiredInput(rl, "API key (required): ");
       const modelId = await askRequiredInput(rl, "Model id (required): ");
       const noteRaw = await rl.question("Note (optional, press Enter to skip; skip/跳过/- also accepted): ");
       const note = normalizeOptionalNoteInput(noteRaw);

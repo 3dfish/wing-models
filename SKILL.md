@@ -11,8 +11,8 @@ This skill packages a repeatable OpenAI-compatible model conversation workflow.
 ## Alias Credential Set (Mandatory)
 
 - Do not use a single `API_KEY + MODEL_ID` pair.
-- Use required 4-step interactive profile input: `alias -> apikey -> baseurl -> modelid`.
-- For every credential entry (including the first one), collect `alias`, `apikey`, `baseurl`, and `modelid` one-by-one in chat.
+- Use required 4-step interactive profile input: `alias -> baseurl -> apikey -> modelid`.
+- For every credential entry (including the first one), collect `alias`, `baseurl`, `apikey`, and `modelid` one-by-one in chat.
 - `baseurl` is mandatory and must be provided explicitly (no default value).
 - Never auto-fill first-entry `alias`/`modelid` from template defaults.
 - `note` is optional and may be left empty; accept `skip` / `跳过` / `-` as empty note when chat UI cannot send blank messages.
@@ -28,7 +28,7 @@ When an agent needs to create `.3rd.env` directly after collecting fields in cha
 
 ```env
 WING_MODELS_DEFAULT_ALIAS=<default-alias-from-chat>
-WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","baseURL":"https://openrouter.ai/api/v1","modelId":"<model-id-from-chat>","note":""}]
+WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","baseURL":"https://openrouter.ai/api/v1","apiKey":"<api-key-from-chat>","modelId":"<model-id-from-chat>","note":""}]
 ```
 
 ## Supported Providers
