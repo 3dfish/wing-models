@@ -1,189 +1,112 @@
 # Wing-Models
 
-`wing-models` 用于让agent直接调用第三方模型。
+一个可复用的 OpenAI 兼容模型对话工作流技能包。
 
-核心变化：不再使用单一 `apikey + model`，而是使用凭据条目集合：
+## 功能
 
-- 必填 3 步录入：`别名 -> apikey -> modelid`
-- 可选录入：`baseURL`（默认为 `https://api.openai.com/v1`）
-- 首条凭据也必须逐项录入，不能跳过别名和 modelid
-- 为保证多 agent 一致性，凭据录入统一在聊天框逐项采集
-- 备注为可选项（可留空）
-- 至少配置一条
-- 调用时通过 `alias` 选择模型与密钥
-
-## 支持的提供商
-
-本工具兼容所有 OpenAI SDK 兼容的 API：
-
-- OpenAI（默认：`https://api.openai.com/v1`）
-- OpenRouter（`https://openrouter.ai/api/v1`）
-- Azure OpenAI
-- 本地模型（如 Ollama：`http://localhost:11434/v1`）
-- 其他任何 OpenAI 兼容端点
-
-## 交互入口
-
-- CLI: 通过命令行脚本调用
-- VS Code Chat: 通过技能工作流交互
-
-## 仓库结构
-
-```text
-.
-|-- .3rd.env.template
-|-- SKILL.md
-|-- README.md
-|-- references/
-|   |-- agent-compatibility.md
-|   `-- regression-checklist.md
-`-- scripts/
-    |-- agent-profiles.json
-    |-- wing_models.mjs
-    |-- package.json
-    `-- package-lock.json
-```
-
-## 环境要求
-
-- Node.js 18+
-- npm
-- OpenAI 兼容 API key（至少一条 profile）
+- **多配置支持**: 使用 alias 管理多个 API 配置
+- **多服务商兼容**: 支持 OpenAI、OpenRouter、Azure OpenAI、本地模型等
+- **多模态输入**: 支持文件附件和 URL 作为输入
+- **安全存储**: 凭证存储于本地 `.3rd.env` 文件
+- **对话记录**: 自动保存对话输出为 Markdown 文件
 
 ## 安装
 
 ```bash
-npm install --prefix ./scripts
+npm install --prefix <skill-dir>/scripts
 ```
-
-## 首次初始化（交互录入 profile）
-
-首次运行且当前工作目录的 `.3rd.env` 不存在 profile 集合时，脚本会要求输入：
-
-- 别名 alias（必填）
-- API key（必填）
-- Base URL（可选，默认为 `https://api.openai.com/v1`）
-- Model id（必填）
-- 备注 note（可选，可直接回车留空；若聊天界面不能发送空消息，可输入 `skip` / `跳过` / `-`）
-- 是否继续新增下一条
-- 默认别名（default alias）
-
-约束：
-
-- 即使是第一条凭据，也必须按上面字段逐项输入，不允许直接套用默认 alias/modelid 模板跳过步骤。
 
 ## 快速开始
 
-1. 常规调用（建议显式传 alias）
+### 交互式配置（首次使用）
 
 ```bash
-node ./scripts/wing_models.mjs \
-  --alias work \
-  --prompt "用三句话总结这个仓库"
+node <skill-dir>/scripts/wing_models.mjs
 ```
 
-2. 长文本调用
+按提示依次输入：
+1. Alias（配置别名）
+2. Base URL（API 端点，如 `https://api.openai.com/v1`）
+3. API Key
+4. Model ID（模型标识）
+5. Note（可选备注）
+
+### 命令行调用
 
 ```bash
-node ./scripts/wing_models.mjs \
-  --alias default \
-  --prompt-file ./tmp/prompt.txt
+node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt "你的问题"
 ```
 
-3. 附件输入（通用）
+### 从文件读取提示
 
 ```bash
-node ./scripts/wing_models.mjs \
-  --alias work \
-  --prompt "分析这个附件" \
-  --attachment ./assets/a.pdf
+node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt-file prompt.txt
 ```
 
-4. 列出已配置别名
+### 添加附件
 
 ```bash
-node ./scripts/wing_models.mjs --list-aliases
+node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt "分析这个图片" --attachment image.png
+node <skill-dir>/scripts/wing_models.mjs --alias <alias> --prompt "读取这个URL" --attachment https://example.com/file.pdf
 ```
 
-## CLI 参数
+## 配置文件
 
-- `--prompt <text>`: 直接传入提示词
-- `--prompt-file <path>`: 从文件读取多行提示词
-- `--attachment <path-or-url>`: 传入附件（本地路径/URL/data URL），可重复
-- `--image <path-or-url>`: 兼容旧参数，等价于 `--attachment`（已废弃）
-- `--alias <alias>`: 本次调用使用的别名
-- `--default-alias <alias>`: 指定默认别名（配合 `--save-env` 持久化）
-- `--list-aliases`: 列出当前 profile 别名与绑定模型
-- `--save-env`: 将当前 profile 集、默认别名写入 `.3rd.env`
-- `--help`: 查看帮助
-
-首次非交互运行注意：
-
-- 如果当前工作目录 `.3rd.env` 尚不存在，且在非交互环境中执行，必须显式传入 `--alias`，否则脚本会报错。
-- 这样可以避免首次执行被静默回退为 `default`。
-
-## 凭据存储格式
-
-脚本把 profile 集合写入当前工作目录的 `.3rd.env`：
-
-- `WING_MODELS_PROFILE_SET=[{"alias":"default","apiKey":"***","baseURL":"https://api.openai.com/v1","modelId":"gpt-4o","note":""}]`
-- `WING_MODELS_DEFAULT_ALIAS="alias1"`
-
-说明：
-
-- `WING_MODELS_PROFILE_SET` 按原始 JSON 保存（不额外包裹 JSON 字符串转义层），避免在不同 agent/runtime 间反复读写时出现逐层反斜杠转义累积。
-
-推荐模板（可直接用于 `.3rd.env`，模板文件为仓库根目录 `.3rd.env.template`）：
+配置存储在工作目录的 `.3rd.env` 文件中：
 
 ```env
-WING_MODELS_DEFAULT_ALIAS=<default-alias-from-chat>
-WING_MODELS_PROFILE_SET=[{"alias":"<alias-from-chat>","apiKey":"<api-key-from-chat>","baseURL":"https://api.openai.com/v1","modelId":"<model-id-from-chat>","note":""}]
+WING_MODELS_DEFAULT_ALIAS=my-alias
+WING_MODELS_PROFILE_SET=[{"alias":"my-alias","baseURL":"https://api.openai.com/v1","apiKey":"sk-xxx","modelId":"gpt-4o","note":""}]
 ```
 
-提示：
+## 支持的服务商
 
-- 上述占位值应来自聊天逐项采集结果，不应保留 `default` / `gpt-4o` 作为首条凭据的隐式默认。
+| 服务商 | Base URL 示例 |
+|--------|---------------|
+| OpenAI | `https://api.openai.com/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Azure OpenAI | `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT` |
+| Ollama | `http://localhost:11434/v1` |
 
-注意：
+## 命令参数
 
-- `alias` 允许字符：Unicode 字母/数字（含中文）、`.`、`_`、`-`
-- `baseURL` 可选，默认为 `https://api.openai.com/v1`
-- 旧格式（`alias:key:model`）不支持
+| 参数 | 说明 |
+|------|------|
+| `--alias <name>` | 指定配置别名 |
+| `--prompt "<text>"` | 直接传入提示文本 |
+| `--prompt-file <path>` | 从文件读取提示 |
+| `--attachment <path-or-url>` | 添加附件（可重复） |
+| `--list-aliases` | 列出所有配置 |
+| `--default-alias <name>` | 设置默认别名 |
+| `--save-env` | 强制保存配置 |
+| `--help` | 显示帮助 |
 
-## 输出约定
+## 输出文件
 
-脚本会在当前工作目录（`cwd`）直接输出：
+- `*-dialogue.md`: 对话记录（问题 + 回答）
+- `*-attachment-<n>.<ext>`: 输出附件
+- `*-input-attachment-<n>.<ext>`: 输入附件副本
 
-- 对话记录：`*-dialogue.md`（记录每次提问与回答）
-- 输入附件：`*-input-attachment-<n>.<ext>`
-- 输出附件：`*-attachment-<n>.<ext>`
-- 原始兜底：`*-raw-response.md`
-- 运行环境：当前工作目录 `.3rd.env`
+## 安全说明
 
-说明：
+- API Key 不会出现在日志或终端输出中
+- `.3rd.env` 文件使用限制权限存储（600）
+- 首次非交互运行需显式指定 `--alias`
 
-- 对话 markdown 中，附件仅记录文件路径，不内联附件内容。
+## 文件结构
 
-终端标记：
-
-- `[ROUTE] <json>`: 当前 provider/alias/baseURL/model
-- `[TEXT_FILE] <path>`
-- `[TEXT_CONTENT_BEGIN] ... [TEXT_CONTENT_END]`
-- `[ATTACHMENT_FILE] <path>`
-- `[RAW_FILE] <path>`
-
-## 安全约束
-
-- 不在聊天或终端里泄露 API key
-- 不建议在命令参数中明文传 key
-- 大于 50KB 的输出文件，读取前需要用户授权
-
-## 参考
-
-- 技能定义：`SKILL.md`
-- Agent 兼容：`references/agent-compatibility.md`
-- 回归清单：`references/regression-checklist.md`
+```
+wing-models/
+├── SKILL.md              # 技能定义
+├── scripts/
+│   ├── wing_models.mjs   # 主脚本
+│   └── package.json      # 依赖配置
+├── references/
+│   └── regression-checklist.md
+├── .3rd.env.template     # 配置模板
+└── LICENSE               # GPL-3.0
+```
 
 ## 许可证
 
-本项目采用 GNU GPL-3.0-or-later License，详见 `LICENSE`。
+[GPL-3.0-or-later](LICENSE)
