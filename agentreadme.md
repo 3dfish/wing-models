@@ -1,1 +1,1 @@
-在外部建立1个项目文件夹wing-models-mcp，将这个skill的scripts中的功能全部封装为一个mcp server（这个mcp server按需启动，要有个健壮的启动指令保证运行时就绪），包括skill.md中管理凭据的技能也做一个对应的mcp工具。写一个帮助文件，用于指导agent写出如何调用mcp工具的skill。
+在外部建立1个项目文件夹wing-models-mcp，将这个skill的scripts中的功能全部封装为一个mcp server，包括skill.md中管理凭据的技能也做一个对应的mcp工具。这个mcp server按需启动，要有个健壮的启动指令保证运行时就绪；写一个帮助文件，用于指导agent写出如何调用mcp工具的skill/这个skill中只包含mcp工具，不应包含任何npm和node指令。
